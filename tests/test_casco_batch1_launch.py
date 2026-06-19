@@ -92,6 +92,8 @@ def test_batch1_launch_cli_dry_run_prints_redacted_plan(tmp_path: Path):
             "3",
             "--uv-bin",
             "/root/.local/bin/uv",
+            "--config-path",
+            "generated/libero_goal_2.yaml",
             "--dry-run",
         ],
         check=True,
@@ -108,6 +110,7 @@ def test_batch1_launch_cli_dry_run_prints_redacted_plan(tmp_path: Path):
         "--active",
         "capx/envs/launch.py",
     ]
+    assert plan["command"][6] == "generated/libero_goal_2.yaml"
     assert plan["expected_output_dir"] == str(
         tmp_path / "outputs" / "gemini-3.5-flash" / "run_001"
     )

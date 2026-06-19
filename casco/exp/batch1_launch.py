@@ -108,6 +108,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--key-file", type=Path, default=Path(".geminikey"))
     parser.add_argument("--cuda-visible-devices", default="0")
     parser.add_argument("--uv-bin", default="uv")
+    parser.add_argument("--config-path", default=BATCH1_CONFIG_PATH)
     parser.add_argument("--repo-dir", type=Path, default=Path("."))
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -120,6 +121,7 @@ def _config_from_args(args: argparse.Namespace) -> Batch1LaunchConfig:
         key_file=args.key_file,
         cuda_visible_devices=args.cuda_visible_devices,
         uv_bin=args.uv_bin,
+        config_path=args.config_path,
     )
 
 
