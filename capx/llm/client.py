@@ -126,6 +126,13 @@ def is_local_proxy_model(model: str) -> bool:
     return is_openrouter_model(model) or is_qwen_proxy_model(model)
 
 
+def _apply_auth_header(headers: dict[str, str], args: "LaunchArgs | ModelQueryArgs") -> None:
+    if args.api_key:
+        headers["Authorization"] = f"Bearer {args.api_key}"
+    elif os.getenv("OPENAI_API_KEY") is not None and not is_local_proxy_model(args.model):
+        headers["Authorization"] = f"Bearer {os.getenv('OPENAI_API_KEY')}"
+
+
 @dataclass
 class ModelQueryArgs:
     """Arguments for querying a model."""
@@ -287,10 +294,7 @@ def query_model(args: "LaunchArgs | ModelQueryArgs", prompt: list[dict]) -> str:
             "messages": prompt,
         }
     headers = {"Content-Type": "application/json"}
-    if args.api_key:
-        headers["Authorization"] = f"Bearer {args.api_key}"
-    elif os.getenv("OPENAI_API_KEY") is not None and args.model in GPT_MODELS:
-        headers["Authorization"] = f"Bearer {os.getenv('OPENAI_API_KEY')}"
+    _apply_auth_header(headers, args)
     start_time = time.time()
 
     # keep calling until it works
@@ -388,10 +392,7 @@ def query_model_streaming(
         }
 
     headers = {"Content-Type": "application/json"}
-    if args.api_key:
-        headers["Authorization"] = f"Bearer {args.api_key}"
-    elif os.getenv("OPENAI_API_KEY") is not None and args.model in GPT_MODELS:
-        headers["Authorization"] = f"Bearer {os.getenv('OPENAI_API_KEY')}"
+    _apply_auth_header(headers, args)
 
     full_content = ""
     full_reasoning = ""
