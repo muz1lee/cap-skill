@@ -10,6 +10,7 @@ env/
 .env
 .openrouterkey
 .qwenkey
+.geminikey
 .nvinferencekeys
 .capx_skills.json
 .pytest_cache/
