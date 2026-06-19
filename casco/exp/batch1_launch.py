@@ -30,6 +30,7 @@ class Batch1LaunchConfig:
     total_trials: int = 1
     num_workers: int = 1
     mujoco_gl: str = "osmesa"
+    uv_bin: str = "uv"
 
 
 def launch_output_base(config: Batch1LaunchConfig) -> Path:
@@ -46,7 +47,7 @@ def expected_output_dir(config: Batch1LaunchConfig) -> Path:
 def build_launch_command(config: Batch1LaunchConfig) -> list[str]:
     """Build the CaP-X launch argv without putting secrets into process arguments."""
     return [
-        "uv",
+        config.uv_bin,
         "run",
         "--no-sync",
         "--active",
@@ -106,6 +107,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--key-file", type=Path, default=Path(".geminikey"))
     parser.add_argument("--cuda-visible-devices", default="0")
+    parser.add_argument("--uv-bin", default="uv")
     parser.add_argument("--repo-dir", type=Path, default=Path("."))
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -117,6 +119,7 @@ def _config_from_args(args: argparse.Namespace) -> Batch1LaunchConfig:
         output_root=args.output_root,
         key_file=args.key_file,
         cuda_visible_devices=args.cuda_visible_devices,
+        uv_bin=args.uv_bin,
     )
 
 

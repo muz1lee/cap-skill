@@ -63,6 +63,16 @@ def test_expected_output_dir_matches_capx_model_path_insertion():
     )
 
 
+def test_batch1_launch_command_can_pin_uv_binary_for_tmux_path_stability():
+    config = Batch1LaunchConfig(
+        run_id="run_001",
+        output_root=Path("/mnt/nas/wenqian/cap-skill-data/outputs"),
+        uv_bin="/root/.local/bin/uv",
+    )
+
+    assert build_launch_command(config)[0] == "/root/.local/bin/uv"
+
+
 def test_batch1_launch_cli_dry_run_prints_redacted_plan(tmp_path: Path):
     key_file = tmp_path / ".geminikey"
     key_file.write_text("SECRET_KEY\n", encoding="utf-8")
@@ -80,6 +90,8 @@ def test_batch1_launch_cli_dry_run_prints_redacted_plan(tmp_path: Path):
             str(key_file),
             "--cuda-visible-devices",
             "3",
+            "--uv-bin",
+            "/root/.local/bin/uv",
             "--dry-run",
         ],
         check=True,
@@ -89,7 +101,13 @@ def test_batch1_launch_cli_dry_run_prints_redacted_plan(tmp_path: Path):
     )
 
     plan = json.loads(result.stdout)
-    assert plan["command"][0:5] == ["uv", "run", "--no-sync", "--active", "capx/envs/launch.py"]
+    assert plan["command"][0:5] == [
+        "/root/.local/bin/uv",
+        "run",
+        "--no-sync",
+        "--active",
+        "capx/envs/launch.py",
+    ]
     assert plan["expected_output_dir"] == str(
         tmp_path / "outputs" / "gemini-3.5-flash" / "run_001"
     )
