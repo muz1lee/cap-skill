@@ -75,6 +75,41 @@ def test_extract_code_motif_identifies_perception_only_loop():
     assert motif["z_offset_bucket"] == "none"
 
 
+def test_extract_code_motif_ignores_pregrasp_open_when_finding_place_and_release():
+    code = "\n".join(
+        [
+            "import numpy as np",
+            "all_objects = get_all_object_poses()",
+            "open_gripper()",
+            "grasp_pos, grasp_quat = sample_grasp_pose(bowl_name)",
+            "goto_pose(grasp_pos, grasp_quat)",
+            "close_gripper()",
+            "lift_pos = grasp_pos + np.array([0, 0, 0.15])",
+            "goto_pose(lift_pos, grasp_quat)",
+            "plate_pos, _ = get_object_pose(plate_name)",
+            "place_pos = plate_pos + np.array([0, 0, 0.08])",
+            "goto_pose(place_pos, grasp_quat)",
+            "open_gripper()",
+            "goto_pose(place_pos + np.array([0, 0, 0.15]), grasp_quat)",
+        ]
+    )
+
+    motif = extract_code_motif(code)
+
+    assert motif["subgoal_signature"] == [
+        "lookup",
+        "sample_grasp",
+        "approach",
+        "grasp",
+        "lift",
+        "target_pose",
+        "place",
+        "release",
+        "retreat",
+    ]
+    assert motif["uses_explicit_target_pose"] is True
+
+
 def test_extract_code_motif_returns_invalid_bucket_for_parse_errors():
     motif = extract_code_motif("def broken(:\n")
 

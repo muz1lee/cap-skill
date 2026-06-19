@@ -108,9 +108,23 @@ def _string_literal(node: ast.AST) -> str | None:
     return None
 
 
+def _first_event_index_after(events: list[_CallEvent], name: str, start: int) -> int | None:
+    return next(
+        (index for index, event in enumerate(events[start + 1 :], start=start + 1) if event.name == name),
+        None,
+    )
+
+
 def _uses_explicit_target_pose(events: list[_CallEvent]) -> bool:
+    object_pose_events = [event for event in events if event.name == "get_object_pose"]
+    close_indices = _event_indices(events, "close_gripper")
+    if close_indices and any(event.lineno > events[close_indices[0]].lineno for event in object_pose_events):
+        return True
+    if len(object_pose_events) >= 2:
+        return True
+
     object_pose_literals: list[str] = []
-    for event in events:
+    for event in object_pose_events:
         if event.name != "get_object_pose" or not event.node.args:
             continue
         value = _string_literal(event.node.args[0])
@@ -163,11 +177,7 @@ def _has_lift_after_grasp(tree: ast.AST, events: list[_CallEvent]) -> bool:
     if not close_indices:
         return False
     first_close = close_indices[0]
-    first_open = next(
-        (index for index, event in enumerate(events[first_close + 1 :], start=first_close + 1)
-         if event.name == "open_gripper"),
-        len(events),
-    )
+    first_open = _first_event_index_after(events, "open_gripper", first_close) or len(events)
     lift_names = _assigned_lift_names(tree)
     for event in events[first_close + 1 : first_open]:
         if event.name not in {"goto_pose", "goto_pose_interactive_cartesian"}:
@@ -217,13 +227,18 @@ def _subgoal_signature(
         signature.append("target_pose")
 
     open_indices = _event_indices(events, "open_gripper")
-    first_open = open_indices[0] if open_indices else len(events)
+    first_open_after_close = (
+        _first_event_index_after(events, "open_gripper", first_close)
+        if close_indices
+        else (open_indices[0] if open_indices else None)
+    )
+    first_open = first_open_after_close if first_open_after_close is not None else len(events)
     goto_between_close_and_open = [
         event for event in events[first_close + 1 : first_open] if event.name.startswith("goto_pose")
     ]
     if goto_between_close_and_open and (len(goto_between_close_and_open) > 1 or not has_lift_after_grasp):
         signature.append("place")
-    if open_indices:
+    if first_open_after_close is not None:
         signature.append("release")
     if any(event.name.startswith("goto_pose") for event in events[first_open + 1 :]):
         signature.append("retreat")
