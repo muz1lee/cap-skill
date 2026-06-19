@@ -1,0 +1,16 @@
+Source: /mnt/data/wangcx/code/Sim4Agents/cap-x (host: dsw-795423, port 1023)
+Origin remote (internal): http://127.0.0.1:13000/jim/CAPX-Plus.git
+HEAD commit at archive time: 642a275125571634d2b14f4c1578945e858fff54
+HEAD subject: init
+Note: this is a wangcx-restructured fork. NOT in the same git history as capgym/cap-x.
+Uncommitted changes included in this snapshot:
+  - capx/integrations/__init__.py (modified)
+  - capx/integrations/franka/libero.py (modified)
+  - tests/model_launcher.py (untracked)
+Excluded (security/junk):
+  - .qwenkey, .qwenkey_zax (API keys)
+  - .venv, .venv-libero (12GB virtual envs)
+  - outputs, output_debug, logs (experiment products)
+  - capx.egg-info (pip install -e artifacts)
+  - pyproject copy.toml, *.jpg (junk)
+Archived at: 2026年 06月 19日 星期五 18:26:43 CST
