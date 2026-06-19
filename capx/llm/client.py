@@ -42,6 +42,7 @@ VLM_MODELS = [
     "deepseek/deepseek-r1",
     "qwen/qwen3.5-122b-a10b",
     "moonshotai/kimi-k2",
+    "qwen3-vl-235b-a22b-instruct",
 ]
 CLAUDE_MODELS = ["anthropic/claude-opus-4-5", "anthropic/claude-haiku-4-5"]
 OSS_MODELS = [
@@ -64,6 +65,16 @@ OPENROUTER_MODELS = [
     "openrouter/qwen/qwen3-235b-a22b",
 ]
 OPENROUTER_SERVER_URL = "http://localhost:8110/chat/completions"
+_LOCAL_PROXY_URL = OPENROUTER_SERVER_URL
+
+QWEN_DASHSCOPE_MODELS = [
+    "qwen3.5-plus",
+    "qwen3.5-27b",
+    "qwen3.5-35b-a3b",
+    "qwen3.5-122b-a10b",
+    "qwen3.5-397b-a17b",
+    "qwen3-vl-235b-a22b-instruct",
+]
 
 # ---------------------------------------------------------------------------
 # Ensemble configuration
@@ -81,9 +92,38 @@ ENSEMBLE_CONFIGS = [
 # ---------------------------------------------------------------------------
 
 
+_REASONING_OFF = {"", "off", "false", "0", "no", "none", "disable", "disabled", "minimal"}
+_REASONING_ON = {"on", "true", "1", "enable", "enabled", "low", "medium", "high"}
+
+
+def normalize_reasoning_effort(effort) -> tuple[bool, str]:
+    """Normalize a reasoning-effort value to ``(thinking_on, label)``."""
+    if effort is None:
+        return False, "off"
+    token = str(effort).strip().lower()
+    if token in _REASONING_OFF:
+        return False, "off"
+    if token in _REASONING_ON:
+        return True, token
+    raise ValueError(
+        f"Unrecognized reasoning_effort={effort!r}. "
+        f"Use one of: off/none/minimal, low, medium, high, on."
+    )
+
+
 def is_openrouter_model(model: str) -> bool:
     """Return True if the model should be routed through the OpenRouter proxy."""
     return model.startswith("openrouter/") or model in OPENROUTER_MODELS
+
+
+def is_qwen_proxy_model(model: str) -> bool:
+    """Return True if the model is served by the Qwen DashScope proxy."""
+    return model in QWEN_DASHSCOPE_MODELS
+
+
+def is_local_proxy_model(model: str) -> bool:
+    """Return True if the model should be routed through the local LLM proxy."""
+    return is_openrouter_model(model) or is_qwen_proxy_model(model)
 
 
 @dataclass
@@ -187,9 +227,9 @@ def query_model(args: "LaunchArgs | ModelQueryArgs", prompt: list[dict]) -> str:
         Model response content
     """
 
-    # Route OpenRouter models to the OpenRouter proxy server
-    if is_openrouter_model(args.model):
-        server_url = OPENROUTER_SERVER_URL
+    # Route OpenRouter and Qwen DashScope models to the local LLM proxy.
+    if is_local_proxy_model(args.model):
+        server_url = _LOCAL_PROXY_URL
     else:
         server_url = args.server_url
 
@@ -214,6 +254,16 @@ def query_model(args: "LaunchArgs | ModelQueryArgs", prompt: list[dict]) -> str:
             "temperature": args.temperature,
             "max_tokens": args.max_tokens,
         }
+    elif is_qwen_proxy_model(args.model):
+        thinking_on, _ = normalize_reasoning_effort(args.reasoning_effort)
+        payload = {
+            "model": args.model,
+            "messages": prompt,
+            "temperature": args.temperature,
+            "max_tokens": args.max_tokens,
+        }
+        if thinking_on:
+            payload["enable_thinking"] = True
     elif args.model in CLAUDE_MODELS:
         payload = {
             "model": args.model,
@@ -272,7 +322,11 @@ def query_model(args: "LaunchArgs | ModelQueryArgs", prompt: list[dict]) -> str:
     except (KeyError, IndexError) as exc:
         raise RuntimeError(f"Unexpected response format: {body}") from exc
     if body.get("choices") is not None:
-        out["reasoning"] = body.get("choices")[0].get("message").get("reasoning", None)
+        if is_qwen_proxy_model(args.model):
+            msg = body.get("choices")[0].get("message") or {}
+            out["reasoning"] = msg.get("reasoning") or msg.get("reasoning_content")
+        else:
+            out["reasoning"] = body.get("choices")[0].get("message").get("reasoning", None)
     else:
         out["reasoning"] = None
     return out  # type: ignore[return-value]
@@ -313,6 +367,17 @@ def query_model_streaming(
             "messages": prompt,
             "stream": True,
         }
+    elif is_qwen_proxy_model(args.model):
+        thinking_on, _ = normalize_reasoning_effort(args.reasoning_effort)
+        payload = {
+            "model": args.model,
+            "temperature": args.temperature,
+            "max_tokens": args.max_tokens,
+            "messages": prompt,
+            "stream": True,
+        }
+        if thinking_on:
+            payload["enable_thinking"] = True
     else:
         payload = {
             "model": args.model,
@@ -331,10 +396,15 @@ def query_model_streaming(
     full_content = ""
     full_reasoning = ""
 
+    if is_local_proxy_model(args.model):
+        server_url = _LOCAL_PROXY_URL
+    else:
+        server_url = args.server_url
+
     start_time = time.time()
 
     with requests.post(
-        args.server_url,
+        server_url,
         headers=headers,
         data=json.dumps(payload),
         timeout=200,
@@ -353,7 +423,11 @@ def query_model_streaming(
             body = response.json()
             try:
                 full_content = body["choices"][0]["message"]["content"]
-                full_reasoning = body.get("choices", [{}])[0].get("message", {}).get("reasoning")
+                if is_qwen_proxy_model(args.model):
+                    msg = body.get("choices", [{}])[0].get("message") or {}
+                    full_reasoning = msg.get("reasoning") or msg.get("reasoning_content")
+                else:
+                    full_reasoning = body.get("choices", [{}])[0].get("message", {}).get("reasoning")
                 if full_reasoning:
                     print(f"Reasoning extracted ({len(full_reasoning)} chars)")
                 else:
@@ -398,8 +472,9 @@ def query_model_streaming(
                         full_content += content_delta
                         yield {"type": "content_delta", "content": content_delta}
 
-                    # Handle reasoning delta (some APIs support this)
                     reasoning_delta = delta.get("reasoning", "")
+                    if is_qwen_proxy_model(args.model) and not reasoning_delta:
+                        reasoning_delta = delta.get("reasoning_content", "")
                     if reasoning_delta:
                         full_reasoning += reasoning_delta
                         yield {"type": "reasoning_delta", "content": reasoning_delta}
