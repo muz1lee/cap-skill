@@ -11,6 +11,7 @@ from typing import Any
 
 from capx.skills.extractor import extract_functions
 from casco.exp.summary import parse_summary_file
+from casco.skills.features import analyze_code_features
 
 TRIAL_DIR_PATTERN = re.compile(
     r"^trial_(?P<trial_index>\d+)_sandboxrc_(?P<sandbox_return_code>\d+)_"
@@ -61,6 +62,7 @@ def candidate_records_from_run(run_dir: str | Path) -> list[dict[str, Any]]:
                 "code_path": str(code_path),
                 "code_sha256": hashlib.sha256(code.encode("utf-8")).hexdigest(),
                 "code": code,
+                "features": analyze_code_features(code),
                 "functions": extract_functions(code),
             }
         )

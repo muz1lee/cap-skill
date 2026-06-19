@@ -65,6 +65,17 @@ def test_candidate_records_from_run_preserve_code_and_provenance(tmp_path: Path)
             "code_path": str(code_path),
             "code_sha256": hashlib.sha256(code.encode("utf-8")).hexdigest(),
             "code": code,
+            "features": {
+                "line_count": 5,
+                "nonempty_line_count": 4,
+                "function_count": 1,
+                "imports": [],
+                "call_names": ["close_gripper", "reusable_pick"],
+                "uses_conditionals": False,
+                "uses_loops": False,
+                "has_exception_handler": False,
+                "parse_error": None,
+            },
             "functions": [
                 {
                     "name": "reusable_pick",
