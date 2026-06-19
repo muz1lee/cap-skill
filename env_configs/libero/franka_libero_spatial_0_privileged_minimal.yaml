@@ -1,0 +1,34 @@
+# Minimal privileged LIBERO config: ground-truth state, NO perception servers.
+# Only PyRoKi (IK) is needed. For CaSCo Batch-1 smoke test with gemini.
+# Derived from franka_libero_spatial_0_privileged.yaml, SAM3/GraspNet removed.
+
+env:
+  _target_: capx.envs.tasks.franka.franka_libero_env.FrankaLiberoCodeEnv
+  cfg:
+    _target_: capx.envs.tasks.base.CodeExecEnvConfig
+    low_level:
+      _target_: capx.envs.simulators.libero.FrankaLiberoEnv
+      suite_name: libero_spatial
+      task_id: 0
+    privileged: true
+    apis:
+      - FrankaLiberoPrivilegedApi
+    prompt: |
+      You are controlling a Franka Emika robot with API described below.
+      Goal: {libero_environment_goal}
+      You may write python code comments for reasoning but ONLY write the executable Python code and do not write it in code fences.
+      After this code executes, you will be able to get a new observation of the environment and write new code to complete the task if needed.
+      The functions (APIs) below are already imported to the environment. If you want to use numpy, you need to import it explicitly.
+
+api_servers:
+  - _target_: capx.serving.launch_pyroki_server.main
+    port: 8116
+    host: 127.0.0.1
+    robot: panda_description
+    target_link: panda_hand
+
+record_video: false
+output_dir: ./outputs/casco_batch1_smoke
+
+trials: 1
+num_workers: 1
